@@ -9,119 +9,14 @@ from PyQt6.QtWidgets import (
     QMainWindow, QStatusBar,
     QDockWidget, QListWidget, QListWidgetItem,
     QInputDialog, QMenu, QMessageBox,
-    QToolButton, QHBoxLayout
+    QToolButton, QHBoxLayout, QFileDialog
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QAction
 #导入核心模块
+from UI.dialogs import LoginDialog,SettingsDialog
 from core.manual_generator import generate_data
-
-# -----------------------------------------------------------------
-# --- 登录对话框 Class (无变化) ---
-# -----------------------------------------------------------------
-class LoginDialog(QDialog):
-    # (此部分代码与上一版完全相同，折叠)
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Testron - 登录")
-        self.setModal(True)
-        self.setMinimumWidth(350)
-        layout = QVBoxLayout(self)
-        form_layout = QFormLayout()
-        self.username_input = QLineEdit()
-        self.username_input.setText("user")
-        self.password_input = QLineEdit()
-        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_input.setText("12345")
-        form_layout.addRow(QLabel("用户名:"), self.username_input)
-        form_layout.addRow(QLabel("密码:"), self.password_input)
-        link_layout = QHBoxLayout()
-        self.forgot_password_button = QToolButton()
-        self.forgot_password_button.setText("忘记密码?")
-        self.forgot_password_button.setObjectName("LinkButton")
-        self.forgot_password_button.clicked.connect(self.on_forgot_password)
-        self.register_button = QToolButton()
-        self.register_button.setText("注册账号")
-        self.register_button.setObjectName("LinkButton")
-        self.register_button.clicked.connect(self.on_register)
-        link_layout.addWidget(self.forgot_password_button)
-        link_layout.addStretch()
-        link_layout.addWidget(self.register_button)
-        self.error_label = QLabel("")
-        self.error_label.setObjectName("ErrorLabel")
-        self.error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        button_box.button(QDialogButtonBox.StandardButton.Ok).setText("登录")
-        button_box.button(QDialogButtonBox.StandardButton.Cancel).setText("取消")
-        button_box.accepted.connect(self.check_login)
-        button_box.rejected.connect(self.reject)
-        layout.addLayout(form_layout)
-        layout.addLayout(link_layout)
-        layout.addWidget(self.error_label)
-        layout.addWidget(button_box)
-        self.username = ""
-
-    def check_login(self):
-        user = self.username_input.text()
-        password = self.password_input.text()
-        if user == "user" and password == "12345":
-            self.username = user
-            self.accept()
-        else:
-            self.error_label.setText("用户名或密码错误！")
-
-    def get_username(self):
-        return self.username
-
-    def on_forgot_password(self):
-        self.error_label.setText(" '忘记密码' 功能尚未实现。")
-        print("Forgot Password clicked")
-
-    def on_register(self):
-        self.error_label.setText(" '注册账号' 功能尚未实现。")
-        print("Register clicked")
-
-
-# -----------------------------------------------------------------
-# --- 设置对话框 Class (无变化) ---
-# -----------------------------------------------------------------
-class SettingsDialog(QDialog):
-    # (此部分代码与上一版完全相同，折叠)
-    def __init__(self, parent, current_theme, current_font_size, current_language):
-        super().__init__(parent)
-        self.setWindowTitle("应用设置")
-        self.theme_combo = QComboBox()
-        self.theme_combo.addItems(["Dark", "Light"])
-        self.theme_combo.setCurrentText(current_theme)
-        self.font_size_spinbox = QSpinBox()
-        self.font_size_spinbox.setRange(10, 20)
-        self.font_size_spinbox.setValue(current_font_size)
-        self.font_size_spinbox.setSuffix(" px")
-        self.language_combo = QComboBox()
-        self.language_combo.addItems(["中文 (Chinese)", "English"])
-        self.language_combo.setCurrentText(current_language)
-        form_layout = QFormLayout()
-        form_layout.addRow(QLabel("颜色主题:"), self.theme_combo)
-        form_layout.addRow(QLabel("字体大小:"), self.font_size_spinbox)
-        form_layout.addRow(QLabel("语言 (Language):"), self.language_combo)
-        button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-        main_layout = QVBoxLayout()
-        main_layout.addLayout(form_layout)
-        main_layout.addWidget(button_box)
-        self.setLayout(main_layout)
-
-    def get_settings(self):
-        return {
-            "theme": self.theme_combo.currentText(),
-            "font_size": self.font_size_spinbox.value(),
-            "language": self.language_combo.currentText()
-        }
+from core import exporter
 
 
 # -----------------------------------------------------------------
@@ -157,6 +52,15 @@ class TestronApp(QMainWindow):
         main_layout.addWidget(self.tabs)
         main_layout.addWidget(QLabel("生成结果:"))
         self.result_output = QTextEdit()
+        self.copy_button = QPushButton("复制结果")
+        self.export_button = QPushButton("导出结果")
+        # 放到布局中（例如在 result_output 下方）
+        main_layout.addWidget(self.copy_button)
+        main_layout.addWidget(self.export_button)
+
+        # 连接槽
+        self.copy_button.clicked.connect(self.on_copy_clicked)
+        self.export_button.clicked.connect(self.on_export_clicked)
         self.result_output.setReadOnly(True)
         self.result_output.setText("尚未生成...")
         main_layout.addWidget(self.result_output)
@@ -342,10 +246,9 @@ class TestronApp(QMainWindow):
         form_layout.addRow(QLabel("数据结构:"), self.manual_data_type)
         form_layout.addRow(QLabel("规模 N:"), self.manual_n_value)
         # form_layout.addRow(QLabel("规模 M (矩阵列数):"), self.manual_m_value)
-        form_layout.addRow(QLabel("元素类型:"), self.manual_element_type)
-        form_layout.addRow(QLabel("数据组数:"), self.manual_groups)
+        #form_layout.addRow(QLabel("元素类型:"), self.manual_element_type)
 
-        self.manual_generate_button = QPushButton("生成 (手动模式)")
+        self.manual_generate_button = QPushButton("生成")
         form_layout.addRow(self.manual_generate_button)
         tab.setLayout(form_layout)
         self.manual_generate_button.clicked.connect(self.run_manual_generation)
@@ -446,7 +349,28 @@ class TestronApp(QMainWindow):
 
     def apply_language(self, lang):
         self.status_bar.showMessage(f"语言已切换为: {lang} (部分UI可能需要重启后更新)", 3000)
+    def on_copy_clicked(self):
+        text = self.result_output.toPlainText()
+        success, msg = exporter.copy_to_clipboard(text)
+        self.status_bar.showMessage(msg, 4000)
 
+    def on_export_clicked(self):
+        text = self.result_output.toPlainText()
+        if not text.strip():
+            self.status_bar.showMessage("导出失败：当前没有生成任何数据。", 4000)
+            return
+        # 弹出保存对话框，支持三种格式
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "导出文件",
+            "",
+            "Excel 文件 (*.xlsx);;CSV 文件 (*.csv);;JSON 文件 (*.json)"
+        )
+        if not path:
+            self.status_bar.showMessage("已取消导出。", 3000)
+            return
+        success, msg = exporter.export_to_file(text, path)
+        self.status_bar.showMessage(msg, 5000)
     # -----------------------------------------------------------------
     # --- QSS 样式表 (无变化) ---
     # -----------------------------------------------------------------
@@ -580,30 +504,3 @@ class TestronApp(QMainWindow):
         }}
         QTextEdit:focus {{ border: 1px solid {palette["primary"]}; }}
         """
-
-
-# -----------------------------------------------------------------
-# --- 启动应用程序 (无变化) ---
-# -----------------------------------------------------------------
-# if __name__ == '__main__':
-#     app = QApplication(sys.argv)
-#     login_dialog = LoginDialog()
-
-#     # --- 临时的样式加载方案 (无变化) ---
-#     temp_window_for_style = TestronApp("temp")
-#     default_style = temp_window_for_style.get_stylesheet("Dark", 14)
-#     temp_window_for_style.close()
-#     app.setStyleSheet(default_style)
-
-#     if login_dialog.exec():
-#         username = login_dialog.get_username()
-#         main_window = TestronApp(username=username)
-#         main_window.apply_settings(
-#             main_window.current_theme,
-#             main_window.current_font_size,
-#             main_window.current_language
-#         )
-#         main_window.show()
-#         sys.exit(app.exec())
-#     else:
-#         sys.exit(0)

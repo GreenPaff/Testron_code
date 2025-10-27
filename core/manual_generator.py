@@ -52,8 +52,8 @@ def _parse_range_to_int(spec: str, default: int = 10) -> int:
         return default
 
 
-
-  digits = "123456789"  # per requirement: digits 1-9
+# def _chars_for_element_type(element_type: str) -> str:
+#     digits = "123456789"  # per requirement: digits 1-9
 #     letters = string.ascii_letters  # a-zA-Z
 #     symbols = string.punctuation  # punctuation set
 #     typ = (element_type or "").strip()
